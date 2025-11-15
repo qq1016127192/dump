@@ -1,0 +1,235 @@
+安装必要软件（如果未安装）
+在宝塔面板 -> 软件商店中安装：
+- ✅ Nginx（推荐 1.20+）
+- ✅ MySQL（推荐 5.7+ 或 8.0+）
+- ✅ PM2 管理器（或 Node.js 版本管理器）
+- ✅ Node.js（推荐 18.x 或 20.x LTS）
+
+---
+
+创建网站
+
+### 1. 添加网站
+1. 进入宝塔面板 -> 网站 -> 添加站点
+2. 填写信息：
+   - 域名：比如test.dumpipa.com
+   - 根目录：/www/wwwroot/test.dumpipa.com
+   - FTP：不创建
+   - 数据库：不创建（使用独立数据库）
+   - PHP版本：纯静态（或任意，因为前端是静态文件）
+
+
+
+上传代码文件
+
+### 方式一：使用宝塔文件管理器
+1. 进入宝塔面板 -> 文件
+2. 导航到 `/www/wwwroot/test.dumpipa.com. 你的网站目录
+3. 上传以下目录：
+   - `dumpipa-site-backend/` （后端代码）
+   - `dumpipa-site-frontend/` （前端代码）
+
+
+部署后端服务
+
+### 1. 进入后端目录
+```bash
+cd /www/wwwroot/dump.iosk.cn/dump/dumpipa-site-backend
+```
+
+在宝塔文件管理器中：
+1. 进入 `/www/wwwroot/dump.iosk.cn/dump/dumpipa-site-backend/`
+2. 点击 编辑 文件 env.plan-b.example
+3. 编辑内容：
+```
+PORT=3001
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=你的数据库用户名
+DB_PASSWORD=你的数据库密码
+DB_NAME=你的数据库名
+JWT_SECRET=your-site-backend-secret-key-change-in-production
+JWT_EXPIRES_IN=7d
+MAIN_SITE_API_URL=https://dump.dumpipa.com/api   主站后端api不需要修改
+CORS_ORIGIN=http://test.dumpipa.com  你的分站域名
+NODE_ENV=production
+```
+
+
+
+
+
+使用 node.js项目启动服务
+
+或者点击 宝塔网站  node 项目 添加项目 
+
+找到后端目录 dumpipa-site-backend  项目目录。点击保存
+
+
+
+
+---
+
+## 五、创建数据库和表
+
+### 1. 创建数据库
+1. 进入宝塔面板 -> 数据库 -> 添加数据库
+2. 填写信息：
+   - 数据库名：dumpipa_site（或自定义）
+   - 用户名：自定义
+   - 密码：自定义（建议使用强密码）
+   - 访问权限：本地服务器
+3. 记录数据库信息，更新到 `.env` 文件中
+
+
+部署前端
+
+### 1. 进入前端目录
+```bash
+cd /www/wwwroot/你的目录/dumpipa-site-frontend
+```
+
+### 2. 安装依赖
+```bash
+npm install
+```
+
+没有出错 构建前端
+
+
+npm run build  
+
+
+
+
+### 3. 如果遇到 rollup 错误
+```bash
+# 删除并重新安装
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+
+# 手动安装 rollup（根据系统架构选择）
+uname -m  # 查看架构
+
+# x86_64 架构
+npm install --save-optional @rollup/rollup-linux-x64-gnu
+
+# aarch64 架构
+npm install --save-optional @rollup/rollup-linux-arm64-gnu
+```
+
+### 4. 构建前端
+```bash
+npm run build
+```
+
+部署前端文件
+
+#### 方式一：复制到网站根目录（推荐）
+```bash
+# 将 dist 目录内容复制到网站根目录
+cp -r dist/* /www/wwwroot/你的目录/
+```
+
+或者设置网站目录 /dist/
+
+---
+
+## 七、配置 Nginx
+
+### 1. 进入网站设置
+1. 宝塔面板 -> 网站
+2. 找到 配置文件 
+
+在
+    #REWRITE-START URL重写规则引用,修改后将导致面板设置的伪静态规则失效
+    include /www/server/panel/vhost/rewrite/test.dumpipa.com.conf;
+    #REWRITE-END
+
+
+
+
+和
+
+
+  #禁止访问的文件或目录
+    location ~ ^/(\.user.ini|\.htaccess|\.git|\.env|\.svn|\.project|LICENSE|README.md)
+    {
+        return 404;
+    }
+
+中间 添加 下方 配置。然后保存 重启nginx
+
+
+
+    # Vue Router history 模式支持
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API 代理到分站后端
+    location /api/ {
+        proxy_pass http://localhost:7788/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # WebSocket 支持（如果需要）
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        proxy_buffering off;
+    }
+
+  
+比如：
+
+
+    #REWRITE-START URL重写规则引用,修改后将导致面板设置的伪静态规则失效
+    include /www/server/panel/vhost/rewrite/test.dumpipa.com.conf;
+    #REWRITE-END
+
+    # Vue Router history 模式支持
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API 代理到分站后端
+    location /api/ {
+        proxy_pass http://localhost:7788/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # WebSocket 支持（如果需要）
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        proxy_buffering off;
+    }
+
+    #禁止访问的文件或目录
+    location ~ ^/(\.user.ini|\.htaccess|\.git|\.env|\.svn|\.project|LICENSE|README.md)
+    {
+        return 404;
+    }
+
