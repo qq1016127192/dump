@@ -52,6 +52,8 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+# 但允许数据库结构文件
+!数据库.sql
 
 # 临时文件
 tmp/
